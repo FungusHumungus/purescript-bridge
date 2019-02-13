@@ -17,18 +17,19 @@ import Data.Monoid (Endo(..))
 data Settings = Settings
     { generateLenses :: Bool -- ^use purescript-profunctor-lens for generated PS-types?
     , genericsGenRep :: Bool -- ^generate generics using purescript-generics-rep instead of purescript-generics
+    , generateArgonaut :: Bool -- ^generate argonaut encode and decode instances
     }
     deriving (Eq, Show)
 
 
 -- | Settings to generate Lenses
 defaultSettings :: Settings
-defaultSettings = Settings True True
+defaultSettings = Settings True True True
 
 
 -- |settings for purescript 0.11.x
 purs_0_11_settings :: Settings
-purs_0_11_settings = Settings True False
+purs_0_11_settings = Settings True False False
 
 
 -- | you can `mappend` switches to control the code generation

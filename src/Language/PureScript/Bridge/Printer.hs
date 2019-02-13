@@ -67,7 +67,7 @@ moduleToText settings m = T.unlines $
      ]
   ++ map (sumTypeToText settings) (psTypes m)
   where
-    otherImports = importsFromList (_lensImports settings ++ _genericsImports settings)
+    otherImports = importsFromList (_lensImports settings ++ _genericsImports settings ++ _argonautImports settings)
     allImports = Map.elems $ mergeImportLines otherImports (psImportLines m)
 
 
@@ -78,6 +78,19 @@ _genericsImports settings
   | otherwise =
     [ ImportLine "Data.Generic" $ Set.fromList ["class Generic"] ]
 
+_argonautImports :: Switches.Settings -> [ImportLine]
+_argonautImports settings
+ | Switches.generateArgonaut settings =
+   [ ImportLine "Data.Argonaut.Encode" $ Set.fromList ["class EncodeJson"]
+   , ImportLine "Data.Argonaut.Decode" $ Set.fromList ["class DecodeJson"]
+
+   , ImportLine "Data.Argonaut.Aeson.Decode.Generic" $ Set.fromList ["genericDecodeAeson"]
+   , ImportLine "Data.Argonaut.Aeson.Encode.Generic" $ Set.fromList ["class EncodeRepFields"
+                                                                    ,"genericEncodeAeson"
+                                                                    ,"encodeFields"]
+   , ImportLine "Data.Argonaut.Aeson.Options" $ Set.fromList ["defaultOptions"]
+   ]
+ | otherwise = []
 
 _lensImports :: Switches.Settings -> [ImportLine]
 _lensImports settings
@@ -113,14 +126,25 @@ sumTypeToTypeDecls :: Switches.Settings -> SumType 'PureScript -> Text
 sumTypeToTypeDecls settings st@(SumType t cs _) = T.unlines $
     dataOrNewtype <> " " <> typeInfoToText True t <> " ="
   : "    " <> T.intercalate "\n  | " (map (constructorToText 4) cs) <> "\n"
-  : instances settings st
+  : ( derivedInstances settings st
+      <>  instances settings st )
   where
     dataOrNewtype = if isJust (nootype cs) then "newtype" else "data"
 
+instances :: Switches.Settings -> SumType 'PureScript -> [Text]
+instances settings (SumType t _ _)
+  | Switches.generateArgonaut settings = 
+    [ "instance encodeJson" <> _typeName t <> " :: EncodeJson " <> _typeName t
+    , "  where encodeJson = genericEncodeAeson defaultOptions"
+    , "instance decodeJson" <> _typeName t <> " :: DecodeJson " <> _typeName t
+    , "  where decodeJson = genericDecodeAeson defaultOptions" ]
+  | otherwise = []
+
+
 -- | Given a Purescript type, generate `derive instance` lines for typeclass
 -- instances it claims to have.
-instances :: Switches.Settings -> SumType 'PureScript -> [Text]
-instances settings st@(SumType t _ is) = map go is
+derivedInstances :: Switches.Settings -> SumType 'PureScript -> [Text]
+derivedInstances settings st@(SumType t _ is) = map go is
   where
     go :: Instance -> Text
     go i = "derive instance " <> T.toLower c <> _typeName t <> " :: " <> extras i <> c <> " " <> typeInfoToText False t <> postfix i
